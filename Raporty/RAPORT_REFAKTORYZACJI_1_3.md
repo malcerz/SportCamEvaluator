@@ -47,6 +47,7 @@ Zachowane są tryby Szybki/Zrównoważony/Dokładny, metryki i matematyka oceny,
 - 16 testów jednostkowych przechodzi; opcjonalny test integracyjny GPU/fallback wymaga zmiennej `SPORTCAM_TEST_VIDEO` i jest raportowany oddzielnie.
 - Pełna analiza HEVC 4K 10-bit 29,97 FPS obejmuje 56 453 klatki i trwała 16:00 z zapisanym profilem. Pełna analiza HEVC 4K 8-bit 29,98 FPS (`20260720-1500LOW.mp4`, 4 891 klatek) trwała 244,34 s łącznie z autotuningiem; średnia wyniosła 20,02 FPS, szczytowy working set 2,61 GB, ocena 3,8 i była zgodna z zachowanym wynikiem odniesienia 1.2.
 - Krótki, 10-sekundowy HEVC 4K 10-bitowy wycinek przeanalizował się w 20,44 s trybem Zrównoważonym na CPU (14,7 FPS), bez cache; wynik 95,7.
+- Kompilacja aplikacji PyInstaller one-file z kolekcją modułów `core` i `gui` zakończyła się poprawnie; plik EXE ma 10,5 MB.
 - Dokładność metryk sprawdzono dla równoległości 1/2/3/4/6 oraz wariantów liczby wątków filtrów na identycznych zakresach PTS.
 - Test anulowania i agregacji postępu równoległych segmentów jest objęty testami jednostkowymi.
 - **NOT TESTED:** materiał 60 FPS; rzeczywisty materiał HDR (test 10-bit był BT.709, nie HDR).
