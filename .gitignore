@@ -1,0 +1,17 @@
+# Downloaded runtime binaries and generated artifacts
+ffmpeg/*.exe
+ffmpeg/*.dll
+ffmpeg/*.zip
+build/
+dist/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+scoring.json
+*.spec
+
+# Local test inputs/results and scratch reproducibility data
+work/
+Raporty/benchmark.json
+Raporty/kalibracja.json
+Raporty/powtorzenie.json
