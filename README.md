@@ -58,26 +58,28 @@ nagraj kilka scen w wysokiej jakości, zakoduj z różnymi CRF, policz VMAF i do
 
 ## Pliki
 
-- `sportcam_evaluator.py` – GUI (tkinter)
-- `evaluator_core.py` – silnik analizy (można używać osobno)
-- `get_ffmpeg.ps1`, `run.bat`, `build_exe.bat`
+- `sportcam_evaluator.py` i `evaluator_core.py` – zgodne punkty wejścia GUI, API i CLI.
+- `core/` – analizator, dekoder nagłówków, wykonanie filtrów pikselowych, segmenty, sprzęt, procesy, scoring, eksport i CLI.
+- `gui/` – okno główne, wykresy, kontrolki i motyw.
+- `get_ffmpeg.ps1`, `run.bat`, `build_exe.bat` – pobieranie FFmpeg, uruchamianie i budowanie EXE.
 - Ustawienia użytkownika: `%APPDATA%\SportCamEvaluator\config.json`
 
 
-## Wydajność (1.2.0)
+## Wydajność (1.3.0)
 
 - **Zrównoważony**: pełne QP i SI/TI, dotychczasowy automatyczny odstęp CAMBI.
 - **Dokładny**: pełne QP i SI/TI, CAMBI co klatkę (można wskazać inny odstęp).
 - **Szybki**: pełne QP, ciągłe próbki SI/TI i CAMBI z początku, środka, końca oraz fragmentów o wysokim QP / rozmiarze klatek. Wynik jest oznaczony jako przybliżony.
 - CAMBI-only jest włączane dopiero po sprawdzeniu identyczności wyników 8/10-bit oraz braku metryk modelu VMAF. Nie zmienia rozdzielczości CAMBI. W razie nieobsługi wraca model VMAF.
-- Dekoder i podział pracy są dobierane pomiarem całego łańcucha filtrów; na krótkich filmach bez zapisanej kalibracji używany jest CPU. Kalibracja uwzględnia sprzęt, sterownik NVIDIA, kodek, obraz, głębię, FFmpeg i ustawienia próbkowania. Dla materiałów od 90 sekund pierwsza analiza wykonuje ograniczony czasowo benchmark dekodera i segmentów (około 30 s plus kończący się test); późniejsze analizy korzystają z zapisanej kalibracji. Tryb Szybki porównuje tylko dekodery. Pełny benchmark można uruchomić ręcznie. Koszt pierwszej kalibracji może przewyższyć zysk dla pojedynczego filmu.
+- Dekoder i podział pracy są dobierane medianami z trzech powtórzeń pomiaru całego łańcucha filtrów. Kalibracja sprawdza CPU, CUDA/NVDEC, D3D11VA, 1/2/3/4/6 procesów i wątki filtrów, z osobnym dłuższym pomiarem pamięci. Jej czas zależy od materiału i sprzętu; na pierwszym długim 4K 10-bitowym materiale zajęła około 11 min. Profil jest zapisywany według sprzętu, sterownika, FFmpeg, kodeka, rozdzielczości, głębi i ustawień, a zgodne kolejne analizy omijają autotuning. Tryb Szybki porównuje tylko dekodery. Pełny benchmark można uruchomić ręcznie. Koszt pierwszej kalibracji może przewyższyć zysk dla pojedynczego filmu.
 - Ręczny benchmark (bez rekompresji i bez plików wideo):
   `python evaluator_core.py "film.mp4" --benchmark`
-  Wynik pokazuje CPU/CUDA/D3D11VA i działające backendy oraz 2/3/4/6 procesów. Warianty z różnymi metrykami są odrzucane. Kalibracja jest zapamiętywana.
+  Wynik pokazuje CPU/CUDA/D3D11VA i działające backendy oraz testy 1/2/3/4/6 procesów. Warianty z różnymi metrykami są odrzucane. Kalibracja jest zapamiętywana.
 - Cache zakończonych analiz: `%LOCALAPPDATA%\SportCamEvaluator\cache-v2`. GUI: **Wymuś analizę**, menu **Ustawienia → Wyczyść cache wyników**. W CLI użyj `--force`. Cache uwzględnia metadane pliku z czasem nanosekundowym, wersję silnika, scoring, tryb i ustawienia metryk oraz pliki FFmpeg/ffprobe.
 - CLI: `python evaluator_core.py film.mp4 --mode fast|balanced|accurate --force --json wynik.json`.
 - Eksport JSON zawiera czasy etapów, dekoder, liczbę/wątki procesów, FPS i próbkowany szczyt sumy working set Python + FFmpeg. To pomiar co 100 ms, obejmuje strony współdzielone wielokrotnie i nie jest dokładnym maksimum fizycznego RAM.
 - Wykresy są agregowane poza głównym wątkiem do kolumn pikseli z zachowaniem minimum/maksimum. Ukryte zakładki nie są rysowane. Surowe dane pozostają w eksporcie i podpowiedziach.
+- Pasek postępu pokazuje klatki ukończone w obu pełnych przebiegach, FPS chwilowe i średnie, pozostałe klatki, ETA po rozgrzaniu estymatora, dekoder i aktywne procesy.
 - Punktacja i jej wagi pozostają bez zmian. Poprawiono ciągłość TI, nadmiarowe klatki na granicach segmentów oraz globalną fazę próbkowania CAMBI. Te poprawki mogą zmienić stare oceny; szczegóły i pomiary są w `Raporty/`.
 
 Testy: `python -m unittest discover -s tests -v`.

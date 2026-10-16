@@ -3,7 +3,7 @@ rem Buduje samodzielny SportCamEvaluator.exe (PyInstaller) w folderze dist\Sport
 cd /d "%~dp0"
 py -3 -m pip install --upgrade pyinstaller || goto :err
 py -3 -m PyInstaller --noconfirm --clean --windowed --onefile --name SportCamEvaluator ^
-    --add-data "evaluator_core.py;." sportcam_evaluator.py || goto :err
+    --collect-submodules core --collect-submodules gui sportcam_evaluator.py || goto :err
 if not exist dist\SportCamEvaluator mkdir dist\SportCamEvaluator
 move /y dist\SportCamEvaluator.exe dist\SportCamEvaluator\ >nul
 if exist ffmpeg xcopy /e /i /y ffmpeg dist\SportCamEvaluator\ffmpeg >nul

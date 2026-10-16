@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -40,6 +41,13 @@ class StorageTests(unittest.TestCase):
 
 
 class EngineTests(unittest.TestCase):
+    def test_compatibility_api_uses_separated_core_modules(self):
+        self.assertEqual(core.Analyzer.__module__, 'core.analyzer')
+        self.assertEqual(core.Tools.__module__, 'core.hardware')
+        self.assertTrue(callable(core.load_scoring))
+        self.assertTrue(callable(core.export_csv))
+        self.assertTrue(callable(core.cli))
+
     def test_accuracy_mode_respects_explicit_sampling(self):
         self.assertEqual(core.Analyzer(None, mode='accurate').cambi_subsample, 1)
         self.assertEqual(core.Analyzer(None, mode='accurate', cambi_subsample=5).cambi_subsample, 5)
@@ -54,6 +62,69 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(events, sorted(events))
         self.assertLess(events[0], 1)
         self.assertEqual(events[-2], events[-1])
+
+    def test_progress_includes_frame_rates_eta_decoder_and_process_count(self):
+        messages=[]
+        a=core.Analyzer(None, progress=lambda p,f,m:messages.append(m))
+        a._progress_info={'nb_frames':1000}
+        a._analysis_started=100.0
+        a._pix_active=True
+        a._bit_frac=.6
+        a._pix_frac=.4
+        with patch('core.processes.time.monotonic',side_effect=[100.0,104.0,112.0]):
+            a._report_parallel_progress('pixels',.4,'pixels')
+            a._report_parallel_progress('pixels',.4,'pixels')
+            a._report_parallel_progress('pixels',.4,'pixels')
+        self.assertIn('400/1,000 kl. (+600)',messages[-1])
+        self.assertIn('FPS chwilowo',messages[-1])
+        self.assertIn('avg',messages[-1])
+        self.assertIn('ETA',messages[-1])
+        self.assertIn('CPU',messages[-1])
+        self.assertIn('0 proc.',messages[-1])
+
+    def test_progress_smoothing_runs_without_early_eta(self):
+        import core.processes as process_module
+        a=core.Analyzer(None)
+        messages=[]
+        a.progress=lambda *args: messages.append(args[-1])
+        a._progress_info={'nb_frames':100}
+        a._analysis_started=0.0
+        a._pix_active=False
+        a._fps_sample=None
+        with patch.object(process_module.time,'monotonic',side_effect=[0.0,9.0]):
+            a._report_parallel_progress('bitstream',0.0,'init')
+            a._report_parallel_progress('bitstream',0.5,'half')
+        self.assertIn('FPS chwilowo —',messages[0])
+        self.assertIn('ETA —',messages[0])
+        self.assertIn('FPS chwilowo',messages[1])
+        self.assertIn('ETA ',messages[1])
+
+    def test_segment_benchmark_can_seek_representative_offsets(self):
+        a=core.Analyzer(None,cache=False)
+        a.tools=type('Tools',(),{'hwaccel':None,'has_siti':True,'has_libvmaf':True})()
+        a._frame_times=[i/30 for i in range(361)]
+        info={'fps':30.0,'nb_frames':360,'duration':12.0}
+        captured=[]
+        def fake(*args,**kwargs):
+            captured.append((args[3],args[4],args[13],args[14]))
+            return [],[]
+        with patch.object(a,'_run_pixel_segment',side_effect=fake):
+            a.continuous_segments('clip.mp4',info,3,10,2,duration=2,start_offset=10)
+        self.assertEqual(sorted(x[2] for x in captured),[300,320,340])
+        self.assertEqual(sorted(x[3] for x in captured),[21,21,21])
+
+    def test_segment_duration_uses_packet_pts_not_rounded_nominal_fps(self):
+        a=core.Analyzer(None,cache=False)
+        a.tools=type('Tools',(),{'hwaccel':None,'has_siti':True,'has_libvmaf':False})()
+        a._frame_times=[i/29.97 for i in range(2000)]
+        info={'fps':29.97,'nb_frames':2000,'duration':2000/29.97}
+        captured=[]
+        def fake(*args,**kwargs):
+            captured.append(args[14])
+            return [],[]
+        with patch.object(a,'_run_pixel_segment',side_effect=fake):
+            a.continuous_segments('clip.mp4',info,1,1,14,duration=24)
+        self.assertEqual(captured,[720])
 
     def test_cancel_terminates_registered_children(self):
         import subprocess
@@ -80,6 +151,19 @@ class EngineTests(unittest.TestCase):
                              {'frames':[], 'scores':{}, 'stats':{}, 'info':{}})
             with patch.object(perf,'data_dir',return_value=Path(td)), patch.object(core.subprocess,'Popen',side_effect=AssertionError('FFmpeg launched')):
                 self.assertTrue(a.analyze(source)['cache_hit'])
+
+    def test_verified_hardware_profile_uses_quiet_logs(self):
+        a=core.Analyzer(None)
+        a.tools=SimpleNamespace(hwaccel=None,has_libvmaf=False)
+        a._backend_key=lambda info:'test-profile'
+        with tempfile.TemporaryDirectory() as td:
+            with patch.object(perf,'data_dir',return_value=Path(td)), \
+                 patch.object(perf,'read_json',return_value={'backend':'cuda','segments':6,
+                     'threads':2,'filter_threads':2}):
+                a._select_backend('clip.mp4',{})
+        self.assertEqual(a.tools.hwaccel,'cuda')
+        self.assertEqual(a.hw_loglevel,'error')
+        self.assertTrue(a.trust_hw_for_benchmark)
 
     def test_scoring_is_unchanged_from_reference(self):
         sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'work'))

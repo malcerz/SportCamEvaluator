@@ -8,7 +8,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-ENGINE_REVISION = '6-verified-native-download'
+ENGINE_REVISION = '10-pts-exact-segment-ranges'
 
 def data_dir():
     root = Path(os.environ.get('LOCALAPPDATA', Path.home() / '.local' / 'share'))
